@@ -20,15 +20,20 @@ env:
 jobs:
   apk:
     runs-on: ubuntu-22.04
-    # Two installable apps from the same code: Star Wars Trilogy VR and The Lost World VR.
+    # Three installable apps from the same code: Star Wars Trilogy VR, The Lost World VR and The Ocean Hunter VR.
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: StarWarsTrilogyVR
             lostWorld: 'false'
+            oceanHunter: 'false'
           - name: LostWorldVR
             lostWorld: 'true'
+            oceanHunter: 'false'
+          - name: OceanHunterVR
+            lostWorld: 'false'
+            oceanHunter: 'true'
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +72,7 @@ jobs:
         run: base64 -d Android/app/sideload.keystore.b64 > Android/app/sideload.keystore
 
       - name: Build APK
-        run: gradle -p Android :app:assembleRelease -PlostWorld=${{ matrix.lostWorld }} --no-daemon --stacktrace
+        run: gradle -p Android :app:assembleRelease -PlostWorld=${{ matrix.lostWorld }} -PoceanHunter=${{ matrix.oceanHunter }} --no-daemon --stacktrace
 
       - name: Check the APK contents
         run: |

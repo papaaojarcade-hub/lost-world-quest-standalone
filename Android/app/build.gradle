@@ -5,6 +5,8 @@ plugins {
 // -PlostWorld=true builds the same app as its own install for The Lost World (different app id and name),
 // so Star Wars Trilogy and The Lost World can sit side by side on the headset.
 def lostWorldBuild = project.findProperty('lostWorld') == 'true'
+// -PoceanHunter=true: the third app, The Ocean Hunter VR (shares the Lost World's tuned preset).
+def oceanBuild = project.findProperty('oceanHunter') == 'true'
 
 android {
     namespace 'com.headsplosion.lostworldvr'
@@ -18,9 +20,9 @@ android {
        }
 
     defaultConfig {
-        applicationId lostWorldBuild ? 'com.papas.lostworldstandalone' : 'com.headsplosion.starwarsvr'
-        manifestPlaceholders = [appLabel: lostWorldBuild ? 'The Lost World VR' : 'Star Wars Trilogy VR',
-                                appIcon: lostWorldBuild ? '@mipmap/ic_launcher' : '@android:drawable/sym_def_app_icon']
+        applicationId oceanBuild ? 'com.papas.oceanhunterstandalone' : (lostWorldBuild ? 'com.papas.lostworldstandalone' : 'com.headsplosion.starwarsvr')
+        manifestPlaceholders = [appLabel: oceanBuild ? 'The Ocean Hunter VR' : (lostWorldBuild ? 'The Lost World VR' : 'Star Wars Trilogy VR'),
+                                appIcon: (lostWorldBuild || oceanBuild) ? '@mipmap/ic_launcher' : '@android:drawable/sym_def_app_icon']
         minSdk 29          // Quest 2 / Pro / 3 / 3S all run Android 10 or newer
         targetSdk 32
         versionCode 1
@@ -48,6 +50,8 @@ android {
         // The Lost World build carries its own app icon (src/lostworld/res).
         if (lostWorldBuild)
             res.srcDir 'src/lostworld/res'
+        if (oceanBuild)
+            res.srcDir 'src/oceanhunter/res'
     }
 
     // One fixed signing key for every build (sideloaded app, so nothing secret). The auto-generated debug
@@ -92,8 +96,8 @@ tasks.register('bundleAssets') {
         copy {
             // The Lost World app gets its own preset as Config/Supermodel.ini; Star Wars keeps the general one.
             from(new File(repo, 'Config')) {
-                include 'Games.xml', 'Music.xml', lostWorldBuild ? 'Supermodel.lostworld.ini' : 'Supermodel.ini'
-                if (lostWorldBuild) rename 'Supermodel.lostworld.ini', 'Supermodel.ini'
+                include 'Games.xml', 'Music.xml', (lostWorldBuild || oceanBuild) ? 'Supermodel.lostworld.ini' : 'Supermodel.ini'
+                if (lostWorldBuild || oceanBuild) rename 'Supermodel.lostworld.ini', 'Supermodel.ini'
                 into 'Config'
             }
             from(new File(repo, 'Assets')) { exclude 'DIR.txt'; into 'Assets' }
