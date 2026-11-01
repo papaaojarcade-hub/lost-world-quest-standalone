@@ -43,6 +43,13 @@ struct VRSettings
   bool  netMuted    = false;  // microphone muted (voice chat)
   bool  netMicOk    = true;   // the microphone is allowed / working (set by the program)
   bool  netTalking = false, netFriendTalking = false;   // set by the program
+  // Cheats (The Lost World; set by the menu, never saved: they are off at every start)
+  bool  cheatsAvail  = false;   // the game has cheats (set by the program)
+  bool  cheatsLocked = false;   // a two-player game is running: cheats are off
+  bool  cheatHealth[2] = { false, false };   // infinite health, player 1 / 2
+  bool  cheatAmmo[2]   = { false, false };   // endless ammo, player 1 / 2
+  bool  cheatFreePlay  = false;
+  int   cheatStage     = 0;     // start the next game on stage 1..5 (0 = normal)
   struct NetPubRoom { std::string code; bool direct = false; int age = 0; };
   std::vector<NetPubRoom> netPubRooms;   // the public game list
   bool  netPublic   = false;  // list my online game in the public list
@@ -56,6 +63,7 @@ struct VRMenuResult
   bool resume   = false;
   bool recenter = false;
   bool quit     = false;
+  bool cheatCredits = false;   // "add credits" pressed
   bool netHost  = false;   // "host a game" pressed
   bool netFind  = false;   // "find a game" pressed
   bool netStop  = false;   // "stop" pressed

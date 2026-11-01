@@ -436,6 +436,28 @@ VRMenuResult VRMenu::Render(VRSettings &s, float pointerU, float pointerV, bool 
       r.changed |= Stepper("Render resolution (next start)", &s.renderScale, 0.1f, 0.5f, 1.5f, "%.1fx");
       ImGui::EndTabItem();
     }
+    if (s.cheatsAvail && ImGui::BeginTabItem("  CHEATS  "))
+    {
+      if (s.cheatsLocked)
+      {
+        ImGui::TextUnformatted("CHEATS ARE OFF DURING TWO-PLAYER GAMES");
+        ImGui::Spacing();
+      }
+      ImGui::BeginDisabled(s.cheatsLocked);
+      static const char *const kStage[] = { "Normal", "1", "2", "3", "4", "5" };
+      Choice("Start the next game on stage", &s.cheatStage, kStage, 6);
+      ImGui::TextUnformatted("PICK ANY STAGE ON THE GAME'S OWN STAGE SELECT SCREEN");
+      ImGui::Spacing();
+      Toggle("Infinite health - player 1", &s.cheatHealth[0]);
+      Toggle("Infinite health - player 2", &s.cheatHealth[1]);
+      Toggle("Endless ammo - player 1", &s.cheatAmmo[0]);
+      Toggle("Endless ammo - player 2", &s.cheatAmmo[1]);
+      Toggle("Free play", &s.cheatFreePlay);
+      if (ImGui::Button("ADD CREDITS (TO 99)", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
+        r.cheatCredits = true;
+      ImGui::EndDisabled();
+      ImGui::EndTabItem();
+    }
     if (s.netAvail && ImGui::BeginTabItem("  2 PLAYER  "))
     {
       ImGui::TextUnformatted("TWO HEADSETS");

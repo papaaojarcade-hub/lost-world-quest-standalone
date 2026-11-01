@@ -1763,6 +1763,8 @@ static void NetMenuHandle(const VRMenuResult &mr, VRSettings &s)
 static void NetUiUpdate(VRSettings &s)
 {
   s.netAvail = s_lock.game && s_lock.game->name == "lostwsga" && !s_lock.mode;
+  s.cheatsAvail = s.netAvail;
+  s.cheatsLocked = s_net.role != 0;
   // voice chat: runs while two headsets are playing
   {
     static uint32_t nextTry = 0, micChecked = 0;
@@ -2122,12 +2124,95 @@ static void NetPost(CModel3 *m)
     InfoLog("[LOCKSTEP] frame %llu in sync=%d", (unsigned long long)s_lock.frame, s_net.desyncLogged ? 0 : 1);
 }
 
+static void CheatsApply(CModel3 *m);
+
 static bool LockPre(CModel3 *m)
 {
   if (s_net.role)
     return NetPre(m);
   LockTestPre(m);
+  CheatsApply(m);
   return true;
+}
+
+/******************************************************************************
+ Cheats (The Lost World). The addresses are the game's own variables in RAM, found and checked
+ by the model3recomp project (TheTomBritton/lostworld, which studied this same ROM set, lostwsga):
+   health   a word per player (0x1A3720, 0x1A377C): medkits, 0 on the continue screen
+   ammo     a word per player (0x1A3680, 0x1A3684), the capacity 0x3C bytes on
+   credits  a byte at 0x12D4 (the counter shows two digits: 99)
+   stage    a word at 0x1C2B10 = the stage minus one, a byte copy at 0x1A623C; it reads -1 while
+            the game's own stage select screen is up, and the word at 0x1C2B14 is 0 until the
+            stage is under way. Holding both at N from the pick until then starts stage N+1.
+   settings the block at 0x121C: +9 coin setting (26 = free play, with a flag at 0x12F4)
+ Written right before a game frame starts (none is running). Off in two-player games, where both
+ headsets would have to do exactly the same thing.
+******************************************************************************/
+
+static bool s_cheatCredits = false;      // "add credits" was pressed
+
+static void CheatsApply(CModel3 *m)
+{
+  const VRSettings &c = s_vrSettings;
+  static uint32_t prev = 0;
+  static bool holding = false;
+  static uint64_t since = 0;
+  if (!s_lock.game || s_lock.game->name != "lostwsga" || s_net.role)
+  {
+    holding = false;
+    s_cheatCredits = false;
+    return;
+  }
+  const uint64_t f = m->GetTimings().frameId;
+  const uint32_t kStage = 0x1C2B10, kStageCopy = 0x1A623C, kInStage = 0x1C2B14;
+
+  // infinite health / endless ammo, only while the player is in the game
+  static const uint32_t kHealth[2] = { 0x1A3720, 0x1A377C }, kAmmo[2] = { 0x1A3680, 0x1A3684 };
+  for (int p = 0; p < 2; p++)
+  {
+    if (c.cheatHealth[p])
+    {
+      const uint32_t v = m->Read32(kHealth[p]), full = (uint32_t)m->Read8(0x121C + 14) + 1u;
+      if (v && v < full)
+        m->Write32(kHealth[p], full);
+    }
+    if (c.cheatAmmo[p])
+    {
+      const uint32_t cap = m->Read32(kAmmo[p] + 0x3C);
+      if (cap && cap <= 99u && m->Read32(kAmmo[p]) < cap)
+        m->Write32(kAmmo[p], cap);
+    }
+  }
+  if (c.cheatFreePlay && f > 90)
+  {
+    m->Write8(0x121C + 9, 26);
+    m->Write8(0x12F4, 1);
+  }
+  if (s_cheatCredits)
+  {
+    s_cheatCredits = false;
+    if (f > 1000)
+      m->Write8(0x12D4, 99);
+  }
+
+  // start at a chosen stage: when the stage select screen is left, hold the chosen stage until the stage is under way
+  const unsigned n = (unsigned)c.cheatStage;
+  const uint32_t now = m->Read32(kStage);
+  if (n && f > 1000 && prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
+  {
+    holding = true;
+    since = f;
+  }
+  prev = now;
+  if (!holding)
+    return;
+  if (!n || m->Read32(kInStage) != 0 || f - since > 3000)
+  {
+    holding = false;
+    return;
+  }
+  m->Write32(kStage, n - 1u);
+  m->Write8(kStageCopy, (uint8_t)(n - 1u));
 }
 
 // Called right after a game frame finished (none is running).
@@ -2958,6 +3043,8 @@ int Supermodel(const Game &game, ROMSet *rom_set, IEmulator *Model3, CInputs *In
             VRSaveSettings();
           }
           NetMenuHandle(mr, s_vrSettings);
+          if (mr.cheatCredits)
+            s_cheatCredits = true;
           if (mr.recenter)
             xr->Recenter();
           if (mr.quit)
