@@ -82,6 +82,7 @@ extern std::vector<unsigned> g_vrParkedModels;
 // ROM models never drawn in the headset (eyes or cinema screen), e.g. letterbox bars. The flat
 // window still shows them. Set by the platform layer.
 extern std::vector<unsigned> g_vrHiddenModels;
+extern bool g_vrModelDump;   // log the models drawn in a few frames (VRModelDump = 1), to find a game's HUD pieces
 
 // The same hand model as plain triangles in "hand space" (metres; barrel along -Z, +Y up, grip at
 // the origin), for the VR layer to draw it itself, always after the 2D layers so the gun is in

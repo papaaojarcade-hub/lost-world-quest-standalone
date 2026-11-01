@@ -40,6 +40,8 @@
 
 #define NEAR_PLANE 1e-3f
 
+extern void InfoLog(const char *fmt, ...);
+
 namespace New3D {
 
 static IVRFrameTarget* s_vrTarget = nullptr;
@@ -51,6 +53,7 @@ std::vector<unsigned> g_vrHandPrefetch;
 std::string g_vrHandTexCachePath;
 std::vector<unsigned> g_vrParkedModels;
 std::vector<unsigned> g_vrHiddenModels;
+bool g_vrModelDump = false;
 
 CNew3D::CNew3D(const Util::Config::Node &config, const std::string& gameName) : 
 	m_gameName(gameName),
@@ -1067,6 +1070,32 @@ bool CNew3D::VRModelOutsideViewport(const Model& m, const Viewport& vp) const
 
 void CNew3D::VRMarkParkedModels()
 {
+	if (g_vrModelDump) {
+		static unsigned frameNo = 0, dumps = 0;
+		if ((++frameNo % 300) == 0 && dumps < 12) {
+			dumps++;
+			InfoLog("[MODELS] dump %u (frame %u): %u nodes", dumps, frameNo, (unsigned)m_nodes.size());
+			int ni = 0;
+			for (auto& n : m_nodes) {
+				InfoLog("[MODELS]  node %d viewport x=%.0f y=%.0f w=%.0f h=%.0f angles l=%.3f r=%.3f t=%.3f b=%.3f, %u models",
+				        ni++, n.viewport.vpX, n.viewport.vpY, n.viewport.vpWidth, n.viewport.vpHeight,
+				        n.viewport.angle_left, n.viewport.angle_right, n.viewport.angle_top, n.viewport.angle_bottom,
+				        (unsigned)n.models.size());
+				for (auto& m : n.models) {
+					unsigned verts = 0, meshes = 0;
+					bool hi = false, tex = false, alpha = false;
+					if (m.meshes) {
+						for (auto& me : *m.meshes) {
+							meshes++; verts += me.vertexCount; hi |= me.highPriority; tex |= me.textured; alpha |= me.polyAlpha || me.textureAlpha;
+						}
+					}
+					InfoLog("[MODELS]    model %08X%s meshes=%u verts=%u textured=%d alpha=%d highPriority=%d pos=(%.2f %.2f %.2f) scale=%.2f",
+					        (unsigned)m.vrAddr, m.vrOnly ? " (vr)" : "", meshes, verts, (int)tex, (int)alpha, (int)hi,
+					        m.modelMat[12], m.modelMat[13], m.modelMat[14], m.scale);
+				}
+			}
+		}
+	}
 	if (g_vrParkedModels.empty() && g_vrHiddenModels.empty()) {
 		return;
 	}

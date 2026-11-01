@@ -96,8 +96,9 @@ tasks.register('bundleAssets') {
         copy {
             // The Lost World app gets its own preset as Config/Supermodel.ini; Star Wars keeps the general one.
             from(new File(repo, 'Config')) {
-                include 'Games.xml', 'Music.xml', (lostWorldBuild || oceanBuild) ? 'Supermodel.lostworld.ini' : 'Supermodel.ini'
-                if (lostWorldBuild || oceanBuild) rename 'Supermodel.lostworld.ini', 'Supermodel.ini'
+                include 'Games.xml', 'Music.xml', oceanBuild ? 'Supermodel.oceanhunter.ini' : (lostWorldBuild ? 'Supermodel.lostworld.ini' : 'Supermodel.ini')
+                if (oceanBuild) rename 'Supermodel.oceanhunter.ini', 'Supermodel.ini'
+                else if (lostWorldBuild) rename 'Supermodel.lostworld.ini', 'Supermodel.ini'
                 into 'Config'
             }
             from(new File(repo, 'Assets')) { exclude 'DIR.txt'; into 'Assets' }

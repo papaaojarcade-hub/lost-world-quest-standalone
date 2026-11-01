@@ -895,6 +895,7 @@ static std::condition_variable s_vrDoneCv;
 static float      s_vrLateLatchMs = 5.0f;        // VRLateLatchMs: longest wait, 0 = off
 static double     s_vrCollectWaitSum = 0.0, s_vrCollectWaitMax = 0.0;   // stats: done -> collected
 static int        s_vrCollectCount = 0, s_vrLatched = 0;
+static bool  s_vrAimScreenOnly = false;   // game without a wide gun calibration: the screen is the gun's whole range
 static float s_vrAimScaleX = 1.0f, s_vrAimOffsetX = 0.0f;   // gun value = aim * scale + offset
 static float s_vrAimScaleY = 1.0f, s_vrAimOffsetY = 0.0f;
 
@@ -2366,8 +2367,16 @@ static void ApplyVRInput(DesktopXR &xr)
     // The game turns the gun position into its crosshair with its own calibration, which is
     // not exactly 1:1 with the screen. Map "where the controller points" to the gun value
     // that puts the game's crosshair there (VRAimScale/Offset, measured per game).
-    g_vrInput.x = std::clamp(in.aimX[h] * s_vrAimScaleX + s_vrAimOffsetX, 0.0f, 1.0f);
-    g_vrInput.y = std::clamp(in.aimY[h] * s_vrAimScaleY + s_vrAimOffsetY, 0.0f, 1.0f);
+    float ax = in.aimX[h], ay = in.aimY[h];
+    if (s_vrAimScreenOnly)
+    {
+      // No wide calibration for this game (The Ocean Hunter): its own mapping spreads the gun's whole
+      // range over the screen, and the screen is the middle half of the headset's aim range.
+      ax = (ax - 0.25f) * 2.0f;
+      ay = (ay - 0.25f) * 2.0f;
+    }
+    g_vrInput.x = std::clamp(ax * s_vrAimScaleX + s_vrAimOffsetX, 0.0f, 1.0f);
+    g_vrInput.y = std::clamp(ay * s_vrAimScaleY + s_vrAimOffsetY, 0.0f, 1.0f);
   }
   // Debug: fixed screen aim "u,v" (0..1 = the 4:3 screen) for tests without controllers
   if (const char *dbgAim = getenv("SM_DBG_AIM"))
@@ -2798,6 +2807,9 @@ int Supermodel(const Game &game, ROMSet *rom_set, IEmulator *Model3, CInputs *In
           InfoLog("VR: wide gun calibration for '%s'", vrGunCal->game);
         vrCalModel3 = vrModel3;
       }
+      s_vrAimScreenOnly = gameHasLightguns && !vrGunCal && game.name != "lostwsga" && s_runtime_config["VRAimScreenOnly"].ValueAsDefault<bool>(true);
+      if (s_vrAimScreenOnly)
+        InfoLog("VR: no wide gun calibration for '%s': the screen is the gun's whole range", game.name.c_str());
       // Player 2's "PRESS START BUTTON" during play: the game draws it into its own tiles
       // (0x3300-0x3331) on 2D layer 0, name-table rows 45-46, right half. Only those tiles are left out,
       // so subtitles and everything else in that corner stay.
@@ -2833,6 +2845,21 @@ int Supermodel(const Game &game, ROMSet *rom_set, IEmulator *Model3, CInputs *In
       // screen during play; in the headset they would hang in the sky beyond the 4:3 frame.
       New3D::g_vrParkedModels.clear();
       New3D::g_vrHiddenModels.clear();
+      // Any game: VRHideModels = 12345,ABCDEF hides those models (hex addresses; see VRModelDump), and
+      // VRModelDump = 1 writes the models of a few frames to the log so the HUD pieces can be found.
+      New3D::g_vrModelDump = s_runtime_config["VRModelDump"].ValueAsDefault<bool>(false);
+      {
+        const std::string list = s_runtime_config["VRHideModels"].ValueAsDefault<std::string>("");
+        size_t pos = 0;
+        while (pos < list.size())
+        {
+          size_t e = list.find(',', pos);
+          if (e == std::string::npos) e = list.size();
+          const unsigned a = (unsigned)strtoul(list.substr(pos, e - pos).c_str(), nullptr, 16);
+          if (a) New3D::g_vrHiddenModels.push_back(a);
+          pos = e + 1;
+        }
+      }
       if (game.name == "lostwsga")
       {
         New3D::g_vrParkedModels.push_back(0x008D836A);
