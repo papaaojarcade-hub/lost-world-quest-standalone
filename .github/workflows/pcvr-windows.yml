@@ -119,7 +119,7 @@ jobs:
 
   release:
     needs: [ windows, linux ]
-    if: github.event_name == 'push'
+    if: false   # the PC packages stay run artifacts here; this fork's release is the Quest APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -90,7 +90,8 @@ jobs:
           path: dist/${{ matrix.name }}-quest.apk
 
       - name: Publish release asset
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Only The Lost World app is released (the other apps are available as run artifacts).
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.name == 'LostWorldVR'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/${{ matrix.name }}-quest.apk
