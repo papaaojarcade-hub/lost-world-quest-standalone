@@ -2213,8 +2213,16 @@ static void CheatsApply(CModel3 *m)
       lastIn = in;
     }
   }
-  if (n && f > 1000 && prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
+  // The select screen is "entered" when the word becomes -1 after having held a real value (RAM
+  // starts out as all ones at power-on, which must not count). It is "left" when it moves off -1.
+  static bool sawValue = false, inSelect = false;
+  if (now != 0xFFFFFFFFu)
+    sawValue = true;
+  else if (prev != 0xFFFFFFFFu && sawValue)
+    inSelect = true;
+  if (n && inSelect && prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
   {
+    inSelect = false;
     holding = true;
     since = f;
     InfoLog("[CHEAT] stage select left at frame %llu: holding stage %u", (unsigned long long)f, n);
