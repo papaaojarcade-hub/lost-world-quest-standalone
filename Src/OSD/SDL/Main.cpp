@@ -2626,6 +2626,7 @@ int Supermodel(const Game &game, ROMSet *rom_set, IEmulator *Model3, CInputs *In
   Inputs->GetInputSystem()->SetMouseVisibility(!s_runtime_config["FullScreen"].ValueAs<bool>());
   gameHasLightguns = !!(game.inputs & (Game::INPUT_GUN1|Game::INPUT_GUN2));
   gameHasLightguns |= game.name == "lostwsga";
+  gameHasLightguns |= !!(game.inputs & (Game::INPUT_ANALOG_GUN1|Game::INPUT_ANALOG_GUN2));   // The Ocean Hunter
   currentInputs = game.inputs;
   if (gameHasLightguns)
     videoInputs = Inputs;

@@ -22,6 +22,7 @@ namespace
 struct KnownGame { const char* zip; const char* title; };
 const KnownGame kGames[] = {
   {"lostwsga", "The Lost World: Jurassic Park"},
+  {"oceanhun", "The Ocean Hunter"},
   {"swtrilgy", "Star Wars Trilogy Arcade"},
   {"swtrilgya", "Star Wars Trilogy Arcade (Export)"},
   {"swtrilgyp", "Star Wars Trilogy Arcade (Location Test)"},
