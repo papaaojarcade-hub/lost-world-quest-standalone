@@ -60,12 +60,20 @@ UINT8 CRTC72421::ReadRegister(unsigned reg)
 	if (s_fixedClock)
 	{
 		currentTime = (time_t)s_fixedTime.load();
+		#ifdef _WIN32
+		gmtime_s(&tmv, &currentTime);
+#else
 		gmtime_r(&currentTime, &tmv);
+#endif
 	}
 	else
 	{
 		time(&currentTime);
+		#ifdef _WIN32
+		localtime_s(&tmv, &currentTime);
+#else
 		localtime_r(&currentTime, &tmv);
+#endif
 	}
 
 	switch (reg&0xF)
