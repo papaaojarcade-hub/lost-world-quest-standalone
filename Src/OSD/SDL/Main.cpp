@@ -1416,6 +1416,24 @@ static bool NetLoadSnapshot(CModel3 *m)
 }
 
 // Start a session (menu, or the ini keys): role 1 host, 2 join the host at addr:port
+// The cheats as one word, so the host can tell the joiner what is on (both headsets must do the same).
+struct CheatSet { bool health[2], ammo[2], freePlay; int stage; };
+static uint32_t CheatsPack(const VRSettings &c)
+{
+  return (c.cheatHealth[0] ? 1u : 0u) | (c.cheatHealth[1] ? 2u : 0u) | (c.cheatAmmo[0] ? 4u : 0u) |
+         (c.cheatAmmo[1] ? 8u : 0u) | (c.cheatFreePlay ? 16u : 0u) | ((uint32_t)(c.cheatStage & 15) << 8);
+}
+static CheatSet CheatsUnpack(uint32_t w)
+{
+  CheatSet c;
+  c.health[0] = w & 1; c.health[1] = (w >> 1) & 1; c.ammo[0] = (w >> 2) & 1; c.ammo[1] = (w >> 3) & 1;
+  c.freePlay = (w >> 4) & 1;
+  c.stage = (int)((w >> 8) & 15);
+  if (c.stage > 5) c.stage = 0;
+  return c;
+}
+static CheatSet s_netCheats;     // what runs during a two-player game (the host's choices)
+
 static bool NetStartRuntime(int role, const std::string &addr, int port, const std::string &relayCode = std::string(), bool online = false)
 {
   if (s_net.role || s_lock.mode || !s_lock.inputs || !s_lock.game)
@@ -1451,6 +1469,7 @@ static bool NetStartRuntime(int role, const std::string &addr, int port, const s
   n.delay = std::clamp(s_runtime_config[online ? "LockstepOnlineDelay" : "LockstepDelay"].ValueAsDefault<int>(online ? 6 : 4), 1, 20);
   n.config = s_runtime_config["PowerPCFrequency"].ValueAsDefault<unsigned>(0);
   n.gameName = s_lock.game->name;
+  n.cheatWord = role == LockNet::HOST ? CheatsPack(s_vrSettings) : 0;
   n.onVoice = [](const uint8_t *p, uint32_t len) { s_voice.OnPacket(p, len); };
   s_voice.send = [](const uint8_t *p, uint32_t len) { s_net.net.SendVoice(p, len); };
   s_voice.threshold = std::clamp(s_runtime_config["VoiceThreshold"].ValueAsDefault<int>(600), 50, 8000);
@@ -1765,6 +1784,8 @@ static void NetUiUpdate(VRSettings &s)
   s.netAvail = s_lock.game && s_lock.game->name == "lostwsga" && !s_lock.mode;
   s.cheatsAvail = s.netAvail;
   s.cheatsLocked = s_net.role != 0;
+  s.cheatsGuest = s_net.role == LockNet::JOIN;
+  s.cheatsInNet = s_net.role != 0;
   // voice chat: runs while two headsets are playing
   {
     static uint32_t nextTry = 0, micChecked = 0;
@@ -1986,6 +2007,11 @@ static void NetUiUpdate(VRSettings &s)
     s.netStatus = "Out of sync - restart the game on both";
 }
 
+static void CheatsRun(CModel3 *m, const CheatSet &c, uint64_t f, bool credits);
+// State of the stage hold. In a two-player game it is reset when the game starts, on both headsets.
+struct CheatState { uint32_t prev = 0; bool holding = false; uint64_t since = 0; bool sawValue = false, inSelect = false; };
+static CheatState s_chs;
+
 static void NetBegin(CModel3 *m)
 {
   s_lock.started = true;
@@ -1995,6 +2021,9 @@ static void NetBegin(CModel3 *m)
   s_net.phase = 3;
   s_lock.inputs->SetGameInputsFrozen(true);
   g_lockWatch = false;
+  s_chs = CheatState();
+  s_netCheats = CheatsUnpack(s_net.role == LockNet::HOST ? s_net.net.cheatWord : (uint32_t)s_net.net.peerCheats);
+  InfoLog("[LOCKSTEP] two-player cheats word %08x", (unsigned)(s_net.role == LockNet::HOST ? s_net.net.cheatWord : (uint32_t)s_net.net.peerCheats));
   InfoLog("[LOCKSTEP] two-player started (%s), input delay %d frames", s_net.role == LockNet::HOST ? "host" : "joiner", s_net.net.delay);
 }
 
@@ -2104,6 +2133,7 @@ static bool NetPre(CModel3 *m)
       if (m->Read8(s_lock.calAddr + 6 + i) != s_lock.cal[i])
         m->Write8(s_lock.calAddr + 6 + i, s_lock.cal[i]);
   }
+  CheatsRun(m, s_netCheats, s_lock.frame, false);   // the same on both headsets: host's choices, own frame count
   s_lock.frame++;
   return true;
 }
@@ -2145,58 +2175,45 @@ static bool LockPre(CModel3 *m)
             the game's own stage select screen is up, and the word at 0x1C2B14 is 0 until the
             stage is under way. Holding both at N from the pick until then starts stage N+1.
    settings the block at 0x121C: +9 coin setting (26 = free play, with a flag at 0x12F4)
- Written right before a game frame starts (none is running). Off in two-player games, where both
- headsets would have to do exactly the same thing.
+ Written right before a game frame starts (none is running). In two-player games only the host's
+ choices count: they travel in the hello message and both headsets apply them on the same frame.
 ******************************************************************************/
 
 static bool s_cheatCredits = false;      // "add credits" was pressed
 
-static void CheatsApply(CModel3 *m)
+
+static void CheatsRun(CModel3 *m, const CheatSet &c, uint64_t f, bool credits)
 {
-  const VRSettings &c = s_vrSettings;
-  static uint32_t prev = 0;
-  static bool holding = false;
-  static uint64_t since = 0;
-  if (!s_lock.game || s_lock.game->name != "lostwsga" || s_net.role)
-  {
-    holding = false;
-    s_cheatCredits = false;
-    return;
-  }
-  const uint64_t f = m->GetTimings().frameId;
+  CheatState &st = s_chs;
   const uint32_t kStage = 0x1C2B10, kStageCopy = 0x1A623C, kInStage = 0x1C2B14;
 
   // infinite health / endless ammo, only while the player is in the game
   static const uint32_t kHealth[2] = { 0x1A3720, 0x1A377C }, kAmmo[2] = { 0x1A3680, 0x1A3684 };
   for (int p = 0; p < 2; p++)
   {
-    if (c.cheatHealth[p])
+    if (c.health[p])
     {
       const uint32_t v = m->Read32(kHealth[p]), full = (uint32_t)m->Read8(0x121C + 14) + 1u;
       if (v && v < full)
         m->Write32(kHealth[p], full);
     }
-    if (c.cheatAmmo[p])
+    if (c.ammo[p])
     {
       const uint32_t cap = m->Read32(kAmmo[p] + 0x3C);
       if (cap && cap <= 99u && m->Read32(kAmmo[p]) < cap)
         m->Write32(kAmmo[p], cap);
     }
   }
-  if (c.cheatFreePlay && f > 90)
+  if (c.freePlay && f > 90)
   {
     m->Write8(0x121C + 9, 26);
     m->Write8(0x12F4, 1);
   }
-  if (s_cheatCredits)
-  {
-    s_cheatCredits = false;
-    if (f > 1000)
-      m->Write8(0x12D4, 99);
-  }
+  if (credits && f > 1000)
+    m->Write8(0x12D4, 99);
 
   // start at a chosen stage: when the stage select screen is left, hold the chosen stage until the stage is under way
-  const unsigned n = (unsigned)c.cheatStage;
+  const unsigned n = (unsigned)c.stage;
   const uint32_t now = m->Read32(kStage);
   if (n)
   {
@@ -2208,36 +2225,54 @@ static void CheatsApply(CModel3 *m)
     {
       logged++;
       InfoLog("[CHEAT] frame %llu: stage word %08x, in-stage word %08x, byte copy %02x, holding=%d, want stage %u",
-              (unsigned long long)f, now, in, m->Read8(kStageCopy), (int)holding, n);
+              (unsigned long long)f, now, in, m->Read8(kStageCopy), (int)st.holding, n);
       lastNow = now;
       lastIn = in;
     }
   }
   // The select screen is "entered" when the word becomes -1 after having held a real value (RAM
   // starts out as all ones at power-on, which must not count). It is "left" when it moves off -1.
-  static bool sawValue = false, inSelect = false;
   if (now != 0xFFFFFFFFu)
-    sawValue = true;
-  else if (prev != 0xFFFFFFFFu && sawValue)
-    inSelect = true;
-  if (n && inSelect && prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
+    st.sawValue = true;
+  else if (st.prev != 0xFFFFFFFFu && st.sawValue)
+    st.inSelect = true;
+  if (n && st.inSelect && st.prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
   {
-    inSelect = false;
-    holding = true;
-    since = f;
+    st.inSelect = false;
+    st.holding = true;
+    st.since = f;
     InfoLog("[CHEAT] stage select left at frame %llu: holding stage %u", (unsigned long long)f, n);
   }
-  prev = now;
-  if (!holding)
+  st.prev = now;
+  if (!st.holding)
     return;
-  if (!n || m->Read32(kInStage) != 0 || f - since > 3000)
+  if (!n || m->Read32(kInStage) != 0 || f - st.since > 3000)
   {
     InfoLog("[CHEAT] stop holding at frame %llu (in-stage word %08x)", (unsigned long long)f, m->Read32(kInStage));
-    holding = false;
+    st.holding = false;
     return;
   }
   m->Write32(kStage, n - 1u);
   m->Write8(kStageCopy, (uint8_t)(n - 1u));
+}
+
+// One player (no network): the settings come straight from the menu.
+static void CheatsApply(CModel3 *m)
+{
+  const VRSettings &v = s_vrSettings;
+  if (!s_lock.game || s_lock.game->name != "lostwsga" || s_net.role)
+  {
+    s_chs = CheatState();
+    s_cheatCredits = false;
+    return;
+  }
+  CheatSet c;
+  c.health[0] = v.cheatHealth[0]; c.health[1] = v.cheatHealth[1];
+  c.ammo[0] = v.cheatAmmo[0]; c.ammo[1] = v.cheatAmmo[1];
+  c.freePlay = v.cheatFreePlay; c.stage = v.cheatStage;
+  const bool credits = s_cheatCredits;
+  s_cheatCredits = false;
+  CheatsRun(m, c, m->GetTimings().frameId, credits);
 }
 
 // Called right after a game frame finished (none is running).

@@ -18,8 +18,9 @@ android {
        }
 
     defaultConfig {
-        applicationId lostWorldBuild ? 'com.headsplosion.lostworldvr' : 'com.headsplosion.starwarsvr'
-        manifestPlaceholders = [appLabel: lostWorldBuild ? 'The Lost World VR' : 'Star Wars Trilogy VR']
+        applicationId lostWorldBuild ? 'com.papas.lostworldstandalone' : 'com.headsplosion.starwarsvr'
+        manifestPlaceholders = [appLabel: lostWorldBuild ? 'The Lost World VR' : 'Star Wars Trilogy VR',
+                                appIcon: lostWorldBuild ? '@mipmap/ic_launcher' : '@android:drawable/sym_def_app_icon']
         minSdk 29          // Quest 2 / Pro / 3 / 3S all run Android 10 or newer
         targetSdk 32
         versionCode 1
@@ -44,6 +45,9 @@ android {
         // SDL's Java side (SDLActivity and friends) is compiled straight from the SDL2 sources.
         java.srcDirs += ['../third_party/SDL2/android-project/app/src/main/java']
         assets.srcDir(layout.buildDirectory.dir('generated/bundledAssets'))
+        // The Lost World build carries its own app icon (src/lostworld/res).
+        if (lostWorldBuild)
+            res.srcDir 'src/lostworld/res'
     }
 
     // One fixed signing key for every build (sideloaded app, so nothing secret). The auto-generated debug

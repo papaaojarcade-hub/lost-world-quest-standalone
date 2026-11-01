@@ -64,6 +64,8 @@ public:
   int connectTimeout = 0;              // seconds to keep trying to reach the host (0 = for ever)
   int delay = 4;                       // game frames of input delay (hides the network latency)
   uint32_t config = 0;                 // must match on both machines
+  uint32_t cheatWord = 0;              // the host's cheat choices (sent in the hello; the joiner uses the host's)
+  std::atomic<uint32_t> peerCheats{0}; // the other headset's cheatWord
   std::string gameName;
 
   std::atomic<bool> peerHello{false}, helloBad{false}, stateReady{false}, peerReady{false}, dead{false}, connected{false};
@@ -82,6 +84,7 @@ public:
       th.join();
     CloseAll();
     peerHello = helloBad = stateReady = peerReady = dead = connected = desync = false;
+    peerCheats = 0;
     stateBuf.clear();
     {
       std::lock_guard<std::mutex> l(mu);
@@ -450,10 +453,11 @@ private:
       std::vector<uint8_t> h;
       auto put32 = [&h](uint32_t v) { h.insert(h.end(), (uint8_t *)&v, (uint8_t *)&v + 4); };
       put32(0x4C4B5354);
-      put32(1);
+      put32(2);
       put32(config);
       put32((uint32_t)gameName.size());
       h.insert(h.end(), gameName.begin(), gameName.end());
+      put32(cheatWord);
       SendMsg('H', h.data(), (uint32_t)h.size());
     }
 
@@ -488,7 +492,7 @@ private:
         memcpy(&magic, &p[0], 4); memcpy(&ver, &p[4], 4); memcpy(&cfg, &p[8], 4); memcpy(&n, &p[12], 4);
       }
       std::string name = (p.size() >= 16 + n) ? std::string((const char *)&p[16], n) : std::string();
-      if (magic != 0x4C4B5354 || ver != 1)
+      if (magic != 0x4C4B5354 || ver != 2 || p.size() < 16 + n + 4)
         SetStatus("the other headset runs a different version");
       else if (name != gameName)
         SetStatus("the other headset runs a different game");
@@ -496,6 +500,9 @@ private:
         SetStatus("the settings differ (PowerPCFrequency must match)");
       else
       {
+        uint32_t cw = 0;
+        memcpy(&cw, &p[16 + n], 4);
+        peerCheats = cw;
         peerHello = true;
         return;
       }

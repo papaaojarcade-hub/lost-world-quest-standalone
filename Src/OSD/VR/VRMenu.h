@@ -45,7 +45,9 @@ struct VRSettings
   bool  netTalking = false, netFriendTalking = false;   // set by the program
   // Cheats (The Lost World; set by the menu, never saved: they are off at every start)
   bool  cheatsAvail  = false;   // the game has cheats (set by the program)
-  bool  cheatsLocked = false;   // a two-player game is running: cheats are off
+  bool  cheatsLocked = false;   // a two-player game is running: the host's choices are fixed
+  bool  cheatsGuest  = false;   // ... and this headset is the joiner
+  bool  cheatsInNet  = false;   // two-player game: no credits button
   bool  cheatHealth[2] = { false, false };   // infinite health, player 1 / 2
   bool  cheatAmmo[2]   = { false, false };   // endless ammo, player 1 / 2
   bool  cheatFreePlay  = false;

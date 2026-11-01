@@ -2,6 +2,8 @@
 
 <p align="center"><img src="Docs/Images/title-screen.jpg" width="620" alt="The Lost World: Jurassic Park title screen running in Supermodel" /></p>
 
+> **Quest standalone edition.** This repository is a fork of [headsplosion/lost-world-supermodel-pcvr](https://github.com/headsplosion/lost-world-supermodel-pcvr), the original PC VR version of The Lost World, which does all the groundwork described below (OpenXR rendering, the gun, the menu). The fork adds a build that runs entirely on the headset: *The Lost World VR - Quest Stand Alone*, app id `com.papas.lostworldstandalone`, with two-player over LAN/internet, voice chat and cheats. Full credit for the original project goes to its author; see [Credits](#credits).
+
 Play Sega's 1997 light-gun arcade game **The Lost World: Jurassic Park** in VR. This is a fork of the [Supermodel](https://github.com/trzy/Supermodel) Sega Model 3 emulator with an OpenXR mode. Your PC runs the emulator and streams it to the headset.
 
 ## Features
@@ -133,3 +135,10 @@ More details and measurements are in [`Docs/PCVR.txt`](Docs/PCVR.txt).
 This project is licensed under the **GNU General Public License v3.0**, like Supermodel. See [`LICENSE`](LICENSE). Any changes you distribute must stay under the GPL, with their source available.
 
 The Lost World: Jurassic Park, Model 3 and SEGA are trademarks of their respective owners. This project is not affiliated with or endorsed by SEGA, Universal Pictures or Amblin Entertainment.
+
+## Credits
+
+- **[headsplosion/lost-world-supermodel-pcvr](https://github.com/headsplosion/lost-world-supermodel-pcvr)** - the original PC VR project this fork is built on: the OpenXR mode, VR gun, cinema mode, options menu and the first Quest port. All credit for that work belongs to its owner.
+- **[Supermodel](https://github.com/trzy/Supermodel)** (trzy and the Supermodel team) - the Sega Model 3 emulator.
+- **[TheTomBritton/lostworld](https://github.com/TheTomBritton/lostworld)** (MIT) - RAM addresses for health, ammo, credits and stage used by the cheats.
+- *The Lost World: Jurassic Park* is (c) Sega / Universal. No game files are included; bring your own `lostwsga.zip`.

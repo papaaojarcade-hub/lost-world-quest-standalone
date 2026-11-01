@@ -440,7 +440,7 @@ VRMenuResult VRMenu::Render(VRSettings &s, float pointerU, float pointerV, bool 
     {
       if (s.cheatsLocked)
       {
-        ImGui::TextUnformatted("CHEATS ARE OFF DURING TWO-PLAYER GAMES");
+        ImGui::TextUnformatted(s.cheatsGuest ? "THE HOST CHOSE THE CHEATS FOR THIS GAME" : "CHEATS ARE FIXED ONCE A TWO-PLAYER GAME IS HOSTED");
         ImGui::Spacing();
       }
       ImGui::BeginDisabled(s.cheatsLocked);
@@ -453,8 +453,12 @@ VRMenuResult VRMenu::Render(VRSettings &s, float pointerU, float pointerV, bool 
       Toggle("Endless ammo - player 1", &s.cheatAmmo[0]);
       Toggle("Endless ammo - player 2", &s.cheatAmmo[1]);
       Toggle("Free play", &s.cheatFreePlay);
+      ImGui::BeginDisabled(s.cheatsInNet);
       if (ImGui::Button("ADD CREDITS (TO 99)", ImVec2(ImGui::GetContentRegionAvail().x, 0)))
         r.cheatCredits = true;
+      ImGui::EndDisabled();
+      if (!s.cheatsLocked)
+        ImGui::TextUnformatted("IN A 2 PLAYER GAME ONLY THE HOST'S CHOICES APPLY");
       ImGui::EndDisabled();
       ImGui::EndTabItem();
     }
