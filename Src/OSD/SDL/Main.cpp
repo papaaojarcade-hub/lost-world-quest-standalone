@@ -2198,16 +2198,33 @@ static void CheatsApply(CModel3 *m)
   // start at a chosen stage: when the stage select screen is left, hold the chosen stage until the stage is under way
   const unsigned n = (unsigned)c.cheatStage;
   const uint32_t now = m->Read32(kStage);
+  if (n)
+  {
+    // diagnostics: what the game does with its stage variables (changes only)
+    static uint32_t lastNow = 0x12345678, lastIn = 0x12345678;
+    static int logged = 0;
+    const uint32_t in = m->Read32(kInStage);
+    if ((now != lastNow || in != lastIn) && logged < 400)
+    {
+      logged++;
+      InfoLog("[CHEAT] frame %llu: stage word %08x, in-stage word %08x, byte copy %02x, holding=%d, want stage %u",
+              (unsigned long long)f, now, in, m->Read8(kStageCopy), (int)holding, n);
+      lastNow = now;
+      lastIn = in;
+    }
+  }
   if (n && f > 1000 && prev == 0xFFFFFFFFu && now != 0xFFFFFFFFu)
   {
     holding = true;
     since = f;
+    InfoLog("[CHEAT] stage select left at frame %llu: holding stage %u", (unsigned long long)f, n);
   }
   prev = now;
   if (!holding)
     return;
   if (!n || m->Read32(kInStage) != 0 || f - since > 3000)
   {
+    InfoLog("[CHEAT] stop holding at frame %llu (in-stage word %08x)", (unsigned long long)f, m->Read32(kInStage));
     holding = false;
     return;
   }
